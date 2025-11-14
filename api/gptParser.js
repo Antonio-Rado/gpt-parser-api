@@ -32,7 +32,7 @@ export default async function handler(req, res) {
         "Ты — парсер продуктов питания. Используй интернет-поиск при необходимости. " +
         "Отвечай строго одним JSON-объектом, без текста вокруг. " +
         "Формат: {\"name\": string, \"brand\": string|null, \"grams\": number|null, " +
-        "\"unit\": \"г\"|\"ml\"|null, \"calories\": number|null, " +
+        "\"unit\": \"порц.\"|\"ml\"|null, \"calories\": number|null, " +
         "\"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null}. " +
         "Если пользователь указал массу, БЖУ и калории должны соответствовать этой массе.";
     } else if (mode === "Рецепт") {
@@ -42,7 +42,7 @@ export default async function handler(req, res) {
         "Для каждого ингредиента укажи калории и БЖУ на его массу (не на 100 г). " +
         "Отвечай строго одним JSON-объектом. Формат: " +
         "{ \"recipe\": string, \"totalGrams\": number, \"ingredients\": [ " +
-        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"г\"|\"ml\", " +
+        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"порц.\"|\"ml\", " +
         "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number } ] }";
     } else if (mode === "Прием пищи") {
       systemPrompt =
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
         "(укажи типичные, если не заданы), калориями и БЖУ на эту массу, а также общие итоги. " +
         "Отвечай строго JSON. Формат: " +
         "{ \"mealName\": string, \"items\": [ " +
-        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"г\"|\"ml\", " +
+        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"порц.\"|\"ml\", " +
         "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number } ], " +
         "\"totals\": {\"grams\": number, \"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number} }";
     } else {
