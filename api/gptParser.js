@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 /**
  * Serverless API (Vercel) — прокси к OpenAI Responses API
  * POST /api/gptParser
- * Body: { mode: "Продукт"|"Рецепт"|"Прием пищи", text: string, useSearch?: boolean }
+ * Body: { mode: "...", text: string, useSearch?: boolean }
  */
 export default async function handler(req, res) {
   // --- CORS (на случай Flutter Web)
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", allowOrigins);
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -27,37 +28,50 @@ export default async function handler(req, res) {
     }
 
     let systemPrompt = "";
+    let effectiveUseSearch = useSearch;
+
+    // ========== РЕЖИМЫ ==========
     if (mode === "Продукт") {
       systemPrompt =
         "Ты — парсер продуктов питания. Используй интернет-поиск при необходимости. " +
-        "Отвечай строго одним JSON-объектом, без текста вокруг. " +
-        "Формат: {\"name\": string, \"brand\": string|null, \"grams\": number|null, " +
-        "\"unit\": \"порц.\"|\"ml\"|null, \"calories\": number|null, " +
-        "\"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null}. " +
-        "Если пользователь указал массу, БЖУ и калории должны соответствовать этой массе.";
-    } else if (mode === "Рецепт") {
+        "Отвечай строго одним JSON-объектом. " +
+        "{\"name\": string, \"brand\": string|null, \"grams\": number|null, \"unit\": \"г\"|\"ml\"|null, " +
+        "\"calories\": number|null, \"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null}.";
+    }
+
+    else if (mode === "Рецепт") {
       systemPrompt =
-        "Ты — парсер рецептов. Пользователь вводит название блюда и массу (общую). " +
-        "Разбей блюдо на ингредиенты в реалистичных пропорциях, чтобы сумма масс равнялась общей. " +
-        "Для каждого ингредиента укажи калории и БЖУ на его массу (не на 100 г). " +
-        "Отвечай строго одним JSON-объектом. Формат: " +
-        "{ \"recipe\": string, \"totalGrams\": number, \"ingredients\": [ " +
-        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"порц.\"|\"ml\", " +
-        "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number } ] }";
-    } else if (mode === "Прием пищи") {
+        "Ты — парсер рецептов. Пользователь вводит название блюда и массу. " +
+        "Разбей блюдо на ингредиенты с реалистичными массами. " +
+        "Отвечай строго JSON: { \"recipe\": string, \"totalGrams\": number, \"ingredients\": [ ... ] }";
+    }
+
+    else if (mode === "Прием пищи") {
       systemPrompt =
-        "Ты — парсер приёмов пищи (набор/комбо). Пользователь перечисляет продукты/блюда, " +
-        "массы могут быть заданы частично или совсем не заданы. Верни список с массами " +
-        "(укажи типичные, если не заданы), калориями и БЖУ на эту массу, а также общие итоги. " +
-        "Отвечай строго JSON. Формат: " +
-        "{ \"mealName\": string, \"items\": [ " +
-        "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"порц.\"|\"ml\", " +
-        "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number } ], " +
-        "\"totals\": {\"grams\": number, \"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number} }";
-    } else {
+        "Ты — парсер приёмов пищи. Верни список продуктов с массами, калориями и БЖУ, " +
+        "а также totals. Строгий JSON: { mealName, items[], totals }.";
+    }
+
+    // ========== НОВЫЙ РЕЖИМ: Штрихкод ==========
+    else if (mode === "Штрихкод") {
+      systemPrompt =
+        "Ты — парсер штрихкодов продуктов (EAN-13). Если штрихкод известен — верни полные данные продукта. " +
+        "Если неизвестен — верни {\"found\": false, \"ean\": \"код\", \"reason\": \"not_found\"}. " +
+        "Если найден — сформируй строго JSON: " +
+        "{ \"found\": true, \"ean\": string, \"name\": string, \"brand\": string|null, " +
+        "\"grams\": number|null, \"unit\": \"г\"|\"ml\"|null, \"calories\": number|null, " +
+        "\"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null }. " +
+        "Если нет данных — ставь null. Никаких объяснений, только JSON.";
+      
+      // Штрихкод → всегда без веб-поиска (403, почти всегда пустые данные)
+      effectiveUseSearch = false;
+    }
+
+    else {
       return res.status(400).json({ error: "Неизвестный режим: " + mode });
     }
 
+    // ========== PAYLOAD ДЛЯ OPENAI ==========
     const payload = {
       model: "gpt-4o-mini",
       input: [
@@ -68,11 +82,11 @@ export default async function handler(req, res) {
       max_output_tokens: 900
     };
 
-    // По желанию включаем веб-поиск (не используем JSON-mode одновременно)
-    if (useSearch) {
+    if (effectiveUseSearch) {
       payload.tools = [{ type: "web_search_preview" }];
     }
 
+    // ========== ЗАПРОС К OPENAI ==========
     const openaiRes = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -84,7 +98,7 @@ export default async function handler(req, res) {
 
     const data = await openaiRes.json();
 
-    // Извлекаем текст из Responses API
+    // ========== ИЗВЛЕЧЕНИЕ ТЕКСТА ==========
     let aggregatedText = "";
     if (Array.isArray(data.output)) {
       for (const item of data.output) {
@@ -97,7 +111,6 @@ export default async function handler(req, res) {
     }
     aggregatedText = (aggregatedText || "").trim();
 
-    // Чистим возможные ```json / ```
     if (aggregatedText.startsWith("```")) {
       aggregatedText = aggregatedText
         .replace(/```[a-z]*\n?/gi, "")
@@ -105,11 +118,14 @@ export default async function handler(req, res) {
         .trim();
     }
 
-    // Вырезаем первый JSON-блок
     const first = aggregatedText.indexOf("{");
     const last = aggregatedText.lastIndexOf("}");
     if (first === -1 || last === -1 || last <= first) {
-      return res.status(500).json({ error: "Ответ не содержит валидного JSON", raw: aggregatedText, data });
+      return res.status(500).json({
+        error: "Ответ не содержит валидного JSON",
+        raw: aggregatedText,
+        data
+      });
     }
     const jsonText = aggregatedText.substring(first, last + 1);
 
@@ -117,23 +133,22 @@ export default async function handler(req, res) {
     try {
       parsed = JSON.parse(jsonText);
     } catch (e) {
-      return res.status(500).json({ error: "Ошибка парсинга JSON", raw: aggregatedText, jsonText });
+      return res.status(500).json({
+        error: "Ошибка парсинга JSON",
+        raw: aggregatedText,
+        jsonText
+      });
     }
 
-    // Для "Прием пищи" — если totals не пришёл, посчитаем сами
+    // ========== ДОП. ОБРАБОТКА ДЛЯ "Прием пищи" ==========
     if (mode === "Прием пищи" && parsed && Array.isArray(parsed.items)) {
       const sum = parsed.items.reduce(
         (acc, it) => {
-          const g = Number(it.grams || 0);
-          const cal = Number(it.calories || 0);
-          const p = Number(it.proteinGrams || 0);
-          const f = Number(it.fatGrams || 0);
-          const c = Number(it.carbGrams || 0);
-          acc.grams += g;
-          acc.calories += cal;
-          acc.proteinGrams += p;
-          acc.fatGrams += f;
-          acc.carbGrams += c;
+          acc.grams += Number(it.grams || 0);
+          acc.calories += Number(it.calories || 0);
+          acc.proteinGrams += Number(it.proteinGrams || 0);
+          acc.fatGrams += Number(it.fatGrams || 0);
+          acc.carbGrams += Number(it.carbGrams || 0);
           return acc;
         },
         { grams: 0, calories: 0, proteinGrams: 0, fatGrams: 0, carbGrams: 0 }
