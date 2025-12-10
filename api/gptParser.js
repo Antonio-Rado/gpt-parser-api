@@ -63,9 +63,7 @@ export default async function handler(req, res) {
         "\"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null }. " +
         "Если нет данных — ставь null. Никаких объяснений, только JSON.";
       
-      // Штрихкод → всегда без веб-поиска (403, почти всегда пустые данные)
-      effectiveUseSearch = false;
-    }
+       }
 
     else {
       return res.status(400).json({ error: "Неизвестный режим: " + mode });
