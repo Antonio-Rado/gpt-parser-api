@@ -52,7 +52,7 @@ export default async function handler(req, res) {
     "{ \"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"г\", " +
     "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number } " +
     "] }. " +
-    "Все поля в каждом ингредиенте ОБЯЗАТЕЛЬНЫ.
+    "Все поля в каждом ингредиенте ОБЯЗАТЕЛЬНЫ. ";
     effectiveUseSearch = false; // 🔴 отключаем веб-поиск
     }
 
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   "{ \"mealName\": string, \"items\": [ { " +
   "\"name\": string, \"brand\": string|null, \"grams\": number, \"unit\": \"г\", " +
   "\"calories\": number, \"proteinGrams\": number, \"fatGrams\": number, \"carbGrams\": number " +
-  "} ], \"totals\": { ... } }." +
+  "} ], \"totals\": { ... } }. ";
     effectiveUseSearch = false; // 🔴 отключаем веб-поиск
     }
 
