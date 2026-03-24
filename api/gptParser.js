@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     "\"proteinGrams\": number|null, \"fatGrams\": number|null, \"carbGrams\": number|null}. " +
     "Если продукт не найден вообще, либо найдено только название а КБЖУ не найдено — верни {\"notFound\": true}. " +
     "Без текста вокруг, без комментариев.";
-  effectiveUseSearch = true;
+  effectiveUseSearch = false;
 }
 
 
